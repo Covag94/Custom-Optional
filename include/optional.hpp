@@ -12,6 +12,26 @@ private:
 
     const T *ptr() const { return reinterpret_cast<const T *>(&m_storage); }
 
+    void swap(Optional &other) noexcept
+    {
+        if (m_hasValue && other.m_hasValue)
+        {
+            std::swap(*ptr(), *other.ptr());
+        }
+        else if (m_hasValue && !other.m_hasValue)
+        {
+            new (other.ptr()) T(std::move(*ptr()));
+            ptr()->~T();
+            std::swap(m_hasValue, other.m_hasValue);
+        }
+        else if (!m_hasValue && other.m_hasValue)
+        {
+            new (ptr()) T(std::move(*other.ptr()));
+            other.ptr()->~T();
+            std::swap(m_hasValue, other.m_hasValue);
+        }
+    }
+
 public:
     Optional() : m_hasValue(false) {}
     ~Optional()
@@ -60,26 +80,9 @@ public:
         }
     }
 
-    Optional &operator=(const Optional &other)
+    Optional &operator=(Optional other)
     {
-        if (this != &other)
-        {
-            if (m_hasValue && other.m_hasValue)
-            {
-                *ptr() = *other.ptr();
-            }
-            else if (m_hasValue && !other.m_hasValue)
-            {
-                ptr()->~T();
-                m_hasValue = other.m_hasValue;
-            }
-            else if (!m_hasValue && other.m_hasValue)
-            {
-                new (ptr()) T(*other.ptr());
-                m_hasValue = other.m_hasValue;
-            }
-        }
-
+        swap(other);
         return *this;
     }
 
@@ -89,40 +92,26 @@ public:
         {
             new (ptr()) T(std::move(*other.ptr()));
             m_hasValue = other.m_hasValue;
-            other.ptr()->~T();
-            other.m_hasValue = false;
         }
     }
 
     Optional &operator=(Optional &&other) noexcept
     {
-        if (this != &other)
-        {
-            if (m_hasValue && other.m_hasValue)
-            {
-                *ptr() = std::move(*other.ptr());
-            }
-            else if (m_hasValue && !other.m_hasValue)
-            {
-                ptr()->~T();
-                m_hasValue = other.m_hasValue;
-            }
-            else if (!m_hasValue && other.m_hasValue)
-            {
-                new (ptr()) T(std::move(*other.ptr()));
-                m_hasValue = other.m_hasValue;
-            }
-        }
-
-        if (other.m_hasValue)
-        {
-            other.ptr()->~T();
-            other.m_hasValue = false;
-        }
-
+        swap(other);
         return *this;
     }
 
 public:
     bool has_value() const { return m_hasValue; }
+    explicit operator bool() const noexcept { return m_hasValue; }
+    T &operator*() { return *ptr(); }
+    const T &operator*() const { return *ptr(); }
+    T *operator->() { return ptr(); }
+    const T *operator->() const { return ptr(); }
+    T &value()
+    {
+        if (!m_hasValue)
+            throw std::bad_optional_access();
+        return *ptr();
+    }
 };
