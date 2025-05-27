@@ -22,14 +22,16 @@ public:
         }
     }
 
-    Optional(const T &value) : m_hasValue(true)
+    Optional(const T &value) : m_hasValue(false)
     {
         new (ptr()) T(value);
+        m_hasValue = true;
     }
 
-    Optional(T &&value) : m_hasValue(true)
+    Optional(T &&value) : m_hasValue(false)
     {
         new (ptr()) T(std::move(value));
+        m_hasValue = true;
     }
 
     template <typename... Args>
@@ -38,20 +40,27 @@ public:
         if (m_hasValue)
         {
             ptr()->~T();
+
+            // Need to reset before construction
+            m_hasValue = false;
         }
         new (ptr()) T(std::forward<Args>(args)...);
         m_hasValue = true;
     }
 
-    Optional(const Optional &other) : m_hasValue(other.m_hasValue)
+    Optional(const Optional &other) : m_hasValue(false)
     {
-        if (m_hasValue)
+        if (other.m_hasValue)
         {
             new (ptr()) T(*other.ptr());
+
+            // Only set to true after placement
+            // new has succeeded
+            m_hasValue = true;
         }
     }
 
-    Optional &operator=(Optional other)
+    Optional &operator=(const Optional &other)
     {
         if (this != &other)
         {
@@ -61,8 +70,8 @@ public:
             }
             else if (m_hasValue && !other.m_hasValue)
             {
-                m_hasValue = other.m_hasValue;
                 ptr()->~T();
+                m_hasValue = other.m_hasValue;
             }
             else if (!m_hasValue && other.m_hasValue)
             {
@@ -74,11 +83,12 @@ public:
         return *this;
     }
 
-    Optional(Optional &&other) noexcept : m_hasValue(other.m_hasValue)
+    Optional(Optional &&other) noexcept : m_hasValue(false)
     {
-        if (m_hasValue)
+        if (other.m_hasValue)
         {
             new (ptr()) T(std::move(*other.ptr()));
+            m_hasValue = other.m_hasValue;
             other.ptr()->~T();
             other.m_hasValue = false;
         }
@@ -94,8 +104,8 @@ public:
             }
             else if (m_hasValue && !other.m_hasValue)
             {
-                m_hasValue = other.m_hasValue;
                 ptr()->~T();
+                m_hasValue = other.m_hasValue;
             }
             else if (!m_hasValue && other.m_hasValue)
             {
@@ -112,4 +122,7 @@ public:
 
         return *this;
     }
+
+public:
+    bool has_value() const { return m_hasValue; }
 };
