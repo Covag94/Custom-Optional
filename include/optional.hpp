@@ -1,4 +1,5 @@
 #pragma once
+#include <utility>
 
 template <typename T>
 class Optional
@@ -29,6 +30,16 @@ private:
             new (ptr()) T(std::move(*other.ptr()));
             other.ptr()->~T();
             std::swap(m_hasValue, other.m_hasValue);
+        }
+    }
+
+private:
+    void reset() noexcept
+    {
+        if (m_hasValue)
+        {
+            ptr()->~T();
+            m_hasValue = false;
         }
     }
 
@@ -92,6 +103,7 @@ public:
         {
             new (ptr()) T(std::move(*other.ptr()));
             m_hasValue = other.m_hasValue;
+            other.reset();
         }
     }
 
@@ -109,6 +121,12 @@ public:
     T *operator->() { return ptr(); }
     const T *operator->() const { return ptr(); }
     T &value()
+    {
+        if (!m_hasValue)
+            throw std::bad_optional_access();
+        return *ptr();
+    }
+    const T &value() const
     {
         if (!m_hasValue)
             throw std::bad_optional_access();
