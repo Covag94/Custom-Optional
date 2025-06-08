@@ -1,6 +1,18 @@
 #pragma once
 #include <utility>
 
+struct nullopt_t
+{
+    explicit constexpr nullopt_t(int) {}
+};
+inline constexpr nullopt_t nullopt{0};
+
+struct in_place_t
+{
+    explicit constexpr in_place_t() = default;
+};
+inline constexpr in_place_t in_place{};
+
 template <typename T>
 class Optional
 {
@@ -44,7 +56,19 @@ private:
     }
 
 public:
-    Optional() : m_hasValue(false) {}
+    // Optional ctor for nullopt
+    Optional(nullopt_t) : m_hasValue(false) {}
+
+    // Optional in-place ctor
+    template <typename... Args>
+    Optional(in_place_t, Args &&...args) : m_hasValue(false)
+    {
+        new (ptr()) T(std::forward<Args>(args)...);
+    }
+
+    Optional() : m_hasValue(false)
+    {
+    }
     ~Optional()
     {
         if (m_hasValue)
@@ -97,6 +121,12 @@ public:
         return *this;
     }
 
+    Optional &operator=(nullopt_t) noexcept
+    {
+        reset();
+        return *this;
+    }
+
     Optional(Optional &&other) noexcept : m_hasValue(false)
     {
         if (other.m_hasValue)
@@ -114,19 +144,19 @@ public:
     }
 
 public:
-    bool has_value() const { return m_hasValue; }
-    explicit operator bool() const noexcept { return m_hasValue; }
-    T &operator*() { return *ptr(); }
-    const T &operator*() const { return *ptr(); }
-    T *operator->() { return ptr(); }
-    const T *operator->() const { return ptr(); }
-    T &value()
+    [[nodiscard]] bool has_value() const { return m_hasValue; }
+    [[nodiscard]] explicit operator bool() const noexcept { return m_hasValue; }
+    [[nodiscard]] T &operator*() { return *ptr(); }
+    [[nodiscard]] const T &operator*() const { return *ptr(); }
+    [[nodiscard]] T *operator->() { return ptr(); }
+    [[nodiscard]] const T *operator->() const { return ptr(); }
+    [[nodiscard]] T &value()
     {
         if (!m_hasValue)
             throw std::bad_optional_access();
         return *ptr();
     }
-    const T &value() const
+    [[nodiscard]] const T &value() const
     {
         if (!m_hasValue)
             throw std::bad_optional_access();
