@@ -69,12 +69,12 @@ public:
     }
 
     // Value constructors
-    Optional(const T &value) : m_hasValue(false)
+    explicit Optional(const T &value) : m_hasValue(false)
     {
         new (ptr()) T(value);
         m_hasValue = true;
     }
-    Optional(T &&value) : m_hasValue(false)
+    explicit Optional(T &&value) : m_hasValue(false)
     {
         new (ptr()) T(std::move(value));
         m_hasValue = true;
