@@ -62,10 +62,13 @@ public:
 
     // Optional in-place ctor
     template <typename... Args>
-    Optional(in_place_t, Args &&...args) : m_hasValue(false)
+    Optional(in_place_t, Args &&...args)
     {
         new (ptr()) T(std::forward<Args>(args)...);
+        m_hasValue = true;
     }
+
+    // Value constructors
     Optional(const T &value) : m_hasValue(false)
     {
         new (ptr()) T(value);
@@ -172,50 +175,72 @@ public:
     }
 
 public:
-    [[nodiscard]] constexpr bool has_value() const { return m_hasValue; }
+    [[nodiscard]] constexpr bool has_value() const noexcept { return m_hasValue; }
     [[nodiscard]] explicit constexpr operator bool() const noexcept { return m_hasValue; }
-    [[nodiscard]] T &operator*()
+    [[nodiscard]] T &operator*() & noexcept
     {
         assert(m_hasValue);
         return *ptr();
     }
-    [[nodiscard]] const T &operator*() const
+    [[nodiscard]] const T &operator*() const & noexcept
     {
         assert(m_hasValue);
-        *ptr();
+        return *ptr();
     }
-    [[nodiscard]] T *operator->()
+    [[nodiscard]] T &&operator*() && noexcept
+    {
+        assert(m_hasValue);
+        return std::move(*ptr());
+    }
+    [[nodiscard]] const T &&operator*() const && noexcept
+    {
+        assert(m_hasValue);
+        return std::move(*ptr());
+    }
+    [[nodiscard]] T *operator->() noexcept
     {
         assert(m_hasValue);
         return ptr();
     }
-    [[nodiscard]] const T *operator->() const
+    [[nodiscard]] const T *operator->() const noexcept
     {
         assert(m_hasValue);
         return ptr();
     }
-    [[nodiscard]] T &value()
+    [[nodiscard]] T &value() &
     {
         if (!m_hasValue)
             throw std::bad_optional_access();
         return *ptr();
     }
-    [[nodiscard]] const T &value() const
+    [[nodiscard]] const T &value() const &
     {
         if (!m_hasValue)
             throw std::bad_optional_access();
         return *ptr();
+    }
+    [[nodiscard]] T &&value() &&
+    {
+        if (!m_hasValue)
+            throw std::bad_optional_access();
+        return std::move(*ptr());
+    }
+    [[nodiscard]] const T &&value() const &&
+    {
+        if (!m_hasValue)
+            throw std::bad_optional_access();
+        return std::move(*ptr());
     }
 
     template <typename U>
-    constexpr T value_or(U &&default_value) const & // lvalue overload
+    [[nodiscard]] constexpr T value_or(U &&default_value) const & // lvalue overload
     {
         static_assert(std::is_copy_constructible_v<T> && std::is_convertible_v<U &&, T>);
         return m_hasValue ? **this : static_cast<T>(std::forward<U>(default_value));
     }
 
     template <typename U>
-    constexpr T value_or(U &&default_value) && // rvalue overload
+    [[nodiscard]] constexpr T value_or(U &&default_value) && // rvalue overload
     {
         static_assert(std::is_move_constructible_v<T> && std::is_convertible_v<U &&, T>);
         return m_hasValue ? std::move(**this) : static_cast<T>(std::forward<U>(default_value));
