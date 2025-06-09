@@ -1,38 +1,41 @@
-# Optional<T> - Custom Optional Type in C++
+# Optional<T> – A Lightweight Optional Value Type in C++
 
-This project implements a minimal version of `std::optional` in C++ as a templated class `Optional<T>`.
+This project provides a C++17-compatible implementation of a lightweight `Optional<T>` class, similar in behavior to `std::optional<T>`. It allows representing objects that may or may not contain a value.
 
 ## Features
 
-- Stores an object of type `T` in aligned raw storage
-- Supports:
-  - Default construction (no value)
-  - Copy and move construction
-  - Copy-and-swap assignment (exception safe)
-  - Emplacement of values
-  - Access to value via dereference and `value()`
-- Exception-safe construction and assignment
-- Lightweight and header-only
+- Stores objects in-place without heap allocation
+- Fully supports copy, move, and assignment semantics
+- Provides safe access to contained values with value-checking
+- Offers `value_or`, `operator*`, `operator->`, and more
+- Implements equality comparisons
+- Respects noexcept and type traits for safe and optimized usage
+- Compatible with modern C++ idioms and practices
 
-## Example Usage
+## Files
+
+- `Optional.h`: The main header file containing the `Optional<T>` implementation
+
+## Usage
+
+### Basic Example
 
 ```cpp
 #include "Optional.h"
 #include <iostream>
 
 int main() {
-    Optional<int> opt1;
-    Optional<int> opt2(42);
+    Optional<int> opt1;                   // empty
+    Optional<int> opt2 = 42;              // initialized
+    Optional<int> opt3 = nullopt;         // explicitly empty
 
-    if (opt2) {
-        std::cout << "Value: " << *opt2 << std::endl;
+    if (opt2.has_value()) {
+        std::cout << "opt2 contains: " << *opt2 << '\n';
     }
 
-    opt1 = opt2;
+    int x = opt1.value_or(100);           // x = 100, fallback value
+    std::cout << "opt1 fallback: " << x << '\n';
 
-    if (opt1.has_value()) {
-        std::cout << "Copied value: " << opt1.value() << std::endl;
-    }
-
-    return 0;
+    opt1 = 7;
+    std::cout << "opt1 now has: " << opt1.value() << '\n';
 }
