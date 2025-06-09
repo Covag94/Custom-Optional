@@ -1,5 +1,8 @@
 #pragma once
 #include <utility>
+#include <type_traits>
+#include <cassert>
+#include <stdexcept>
 
 struct nullopt_t
 {
@@ -21,11 +24,12 @@ private:
     bool m_hasValue;
 
     // Get pointer to buffer
-    T *ptr() { return reinterpret_cast<T *>(&m_storage); }
+    T *ptr() noexcept { return reinterpret_cast<T *>(&m_storage); }
 
-    const T *ptr() const { return reinterpret_cast<const T *>(&m_storage); }
+    const T *ptr() const noexcept { return reinterpret_cast<const T *>(&m_storage); }
 
-    void swap(Optional &other) noexcept
+    void swap(Optional &other) noexcept(std::is_nothrow_destructible_v<T> &&
+                                        std::is_nothrow_move_constructible_v<T> && std::is_nothrow_swappable_v<T>)
     {
         if (m_hasValue && other.m_hasValue)
         {
@@ -45,19 +49,16 @@ private:
         }
     }
 
-private:
-    void reset() noexcept
-    {
-        if (m_hasValue)
-        {
-            ptr()->~T();
-            m_hasValue = false;
-        }
-    }
-
 public:
+    //
+    // Constructors
+    //
+
     // Optional ctor for nullopt
-    Optional(nullopt_t) : m_hasValue(false) {}
+    constexpr Optional(nullopt_t) : m_hasValue(false) {}
+    constexpr Optional() : m_hasValue(false)
+    {
+    }
 
     // Optional in-place ctor
     template <typename... Args>
@@ -65,10 +66,17 @@ public:
     {
         new (ptr()) T(std::forward<Args>(args)...);
     }
-
-    Optional() : m_hasValue(false)
+    Optional(const T &value) : m_hasValue(false)
     {
+        new (ptr()) T(value);
+        m_hasValue = true;
     }
+    Optional(T &&value) : m_hasValue(false)
+    {
+        new (ptr()) T(std::move(value));
+        m_hasValue = true;
+    }
+
     ~Optional()
     {
         if (m_hasValue)
@@ -77,20 +85,8 @@ public:
         }
     }
 
-    Optional(const T &value) : m_hasValue(false)
-    {
-        new (ptr()) T(value);
-        m_hasValue = true;
-    }
-
-    Optional(T &&value) : m_hasValue(false)
-    {
-        new (ptr()) T(std::move(value));
-        m_hasValue = true;
-    }
-
     template <typename... Args>
-    void emplace(Args &&...args)
+    T &emplace(Args &&...args)
     {
         if (m_hasValue)
         {
@@ -101,6 +97,8 @@ public:
         }
         new (ptr()) T(std::forward<Args>(args)...);
         m_hasValue = true;
+
+        return *ptr();
     }
 
     Optional(const Optional &other) : m_hasValue(false)
@@ -121,13 +119,13 @@ public:
         return *this;
     }
 
-    Optional &operator=(nullopt_t) noexcept
+    Optional &operator=(nullopt_t) noexcept(std::is_nothrow_destructible_v<T>)
     {
         reset();
         return *this;
     }
 
-    Optional(Optional &&other) noexcept : m_hasValue(false)
+    Optional(Optional &&other) noexcept(std::is_nothrow_move_constructible_v<T>) : m_hasValue(false)
     {
         if (other.m_hasValue)
         {
@@ -137,19 +135,65 @@ public:
         }
     }
 
-    Optional &operator=(Optional &&other) noexcept
+    Optional &operator=(Optional &&other) noexcept(std::is_nothrow_destructible_v<T> &&
+                                                   std::is_nothrow_move_constructible_v<T> && std::is_nothrow_swappable_v<T>)
     {
         swap(other);
         return *this;
     }
 
+    bool operator==(nullopt_t) const noexcept { return !m_hasValue; }
+    bool operator!=(nullopt_t) const noexcept { return m_hasValue; }
+
+    bool operator==(const Optional &other) const noexcept
+    {
+        if (m_hasValue != other.m_hasValue)
+        {
+            return false;
+        }
+        if (!m_hasValue)
+        {
+            return true;
+        }
+        return *ptr() == *other.ptr();
+    }
+    bool operator!=(const Optional &other) const noexcept
+    {
+        return !(*this == other);
+    }
+
+    void reset() noexcept(std::is_nothrow_destructible_v<T>)
+    {
+        if (m_hasValue)
+        {
+            ptr()->~T();
+            m_hasValue = false;
+        }
+    }
+
 public:
-    [[nodiscard]] bool has_value() const { return m_hasValue; }
-    [[nodiscard]] explicit operator bool() const noexcept { return m_hasValue; }
-    [[nodiscard]] T &operator*() { return *ptr(); }
-    [[nodiscard]] const T &operator*() const { return *ptr(); }
-    [[nodiscard]] T *operator->() { return ptr(); }
-    [[nodiscard]] const T *operator->() const { return ptr(); }
+    [[nodiscard]] constexpr bool has_value() const { return m_hasValue; }
+    [[nodiscard]] explicit constexpr operator bool() const noexcept { return m_hasValue; }
+    [[nodiscard]] T &operator*()
+    {
+        assert(m_hasValue);
+        return *ptr();
+    }
+    [[nodiscard]] const T &operator*() const
+    {
+        assert(m_hasValue);
+        *ptr();
+    }
+    [[nodiscard]] T *operator->()
+    {
+        assert(m_hasValue);
+        return ptr();
+    }
+    [[nodiscard]] const T *operator->() const
+    {
+        assert(m_hasValue);
+        return ptr();
+    }
     [[nodiscard]] T &value()
     {
         if (!m_hasValue)
@@ -161,5 +205,19 @@ public:
         if (!m_hasValue)
             throw std::bad_optional_access();
         return *ptr();
+    }
+
+    template <typename U>
+    constexpr T value_or(U &&default_value) const & // lvalue overload
+    {
+        static_assert(std::is_copy_constructible_v<T> && std::is_convertible_v<U &&, T>);
+        return m_hasValue ? **this : static_cast<T>(std::forward<U>(default_value));
+    }
+
+    template <typename U>
+    constexpr T value_or(U &&default_value) && // rvalue overload
+    {
+        static_assert(std::is_move_constructible_v<T> && std::is_convertible_v<U &&, T>);
+        return m_hasValue ? std::move(**this) : static_cast<T>(std::forward<U>(default_value));
     }
 };
