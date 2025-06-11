@@ -12,9 +12,25 @@ This project provides a C++17-compatible implementation of a lightweight `Option
 - Respects noexcept and type traits for safe and optimized usage
 - Compatible with modern C++ idioms and practices
 
-## Files
+## Benchmarking
 
-- `Optional.h`: The main header file containing the `Optional<T>` implementation
+This implementation of `Optional<T>` has been benchmarked against `std::optional<T>` using both trivial and non-trivial types. The evaluation covers construction, assignment, move, copy, and destruction performance.
+
+### Summary
+
+| Operation     | Type            | Custom `Optional` | `std::optional` | Ratio (std/custom) |
+|--------------|------------------|-------------------|------------------|--------------------|
+| Construction | TrivialType       | 39,093 μs         | 39,209 μs        | 1.00×              |
+| Construction | NonTrivialType    | 398,721 μs        | 437,712 μs       | 1.10×              |
+| Copy         | TrivialType       | 22,258 μs         | 22,761 μs        | 1.02×              |
+| Assignment   | TrivialType       | 2,978 μs          | 2,351 μs         | 0.79×              |
+| Move         | TrivialType       | 48,333 μs         | 53,648 μs        | 1.11×              |
+| Destruction  | TrivialType       | 5,311 μs          | 11,296 μs        | 2.13×              |
+| Destruction  | NonTrivialType    | 330,172 μs        | 353,625 μs       | 1.07×              |
+
+### Benchmark Setup
+
+Benchmarks were conducted using custom micro-benchmarking tools with tight loops and instrumented measurement of performance-critical operations. Both `TrivialType` and `NonTrivialType` scenarios were tested to simulate real-world usage under different trait conditions.
 
 ## Usage
 
@@ -39,20 +55,4 @@ int main() {
     opt1 = 7;
     std::cout << "opt1 now has: " << opt1.value() << '\n';
 }
-
-## Benchmarking
-
-This implementation of Optional<T> has been benchmarked against std::optional<T> using both trivial and non-trivial types, evaluating construction, assignment, move, copy, and destruction performance.
-
-### Summary
-Operation	Type	Custom Optional	std::optional	Ratio (std/custom)
-Construction	TrivialType	39,093 μs	39,209 μs	1.00×
-Construction	NonTrivialType	398,721 μs	437,712 μs	1.10×
-Copy	TrivialType	22,258 μs	22,761 μs	1.02×
-Assignment	TrivialType	2,978 μs	2,351 μs	0.79×
-Move	TrivialType	48,333 μs	53,648 μs	1.11×
-Destruction	TrivialType	5,311 μs	11,296 μs	2.13×
-Destruction	NonTrivialType	330,172 μs	353,625 μs	1.07×
-
-### Benchmark Setup
-Benchmarks were run using  high-iteration loops and TrivialType/NonTrivialType classes to simulate real-world usage patterns in a controlled environment.
+```
