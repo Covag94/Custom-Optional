@@ -82,7 +82,9 @@ public:
     /*
         Destructors
     */
-    ~Optional() requires(std::is_trivially_destructible_v<T>) = default;
+    ~Optional()
+        requires(std::is_trivially_destructible_v<T>)
+    = default;
 
     ~Optional()
         requires(!std::is_trivially_destructible_v<T>)
@@ -117,14 +119,15 @@ public:
     /*
         Copy assignment operator
     */
-    Optional &operator=(const Optional& other)
+    Optional &operator=(const Optional &other)
         requires(std::is_trivially_copy_assignable_v<T>)
     = default;
 
-    Optional &operator=(const Optional& other)
+    Optional &operator=(const Optional &other)
         requires(!std::is_trivially_copy_assignable_v<T>)
     {
-        if(this != &other) {
+        if (this != &other)
+        {
             Optional temp(other);
             swap(temp);
         }
