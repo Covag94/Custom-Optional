@@ -23,7 +23,6 @@ private:
     alignas(T) unsigned char m_storage[sizeof(T)];
     bool m_hasValue;
 
-    // Get pointer to buffer
     T *ptr() noexcept { return reinterpret_cast<T *>(&m_storage); }
 
     const T *ptr() const noexcept { return reinterpret_cast<const T *>(&m_storage); }
@@ -50,15 +49,14 @@ private:
     }
 
 public:
-    //
-    // Constructors
-    //
+    /*
+        Constructors
+    */
 
     // Optional ctor for nullopt
     constexpr Optional(nullopt_t) : m_hasValue(false) {}
-    constexpr Optional() : m_hasValue(false)
-    {
-    }
+
+    constexpr Optional() : m_hasValue(false) {}
 
     // Optional in-place ctor
     template <typename... Args>
@@ -74,18 +72,103 @@ public:
         new (ptr()) T(value);
         m_hasValue = true;
     }
+
     explicit Optional(T &&value) : m_hasValue(false)
     {
         new (ptr()) T(std::move(value));
         m_hasValue = true;
     }
 
+    /*
+        Destructors
+    */
+    ~Optional() requires(std::is_trivially_destructible_v<T>) = default;
+
     ~Optional()
+        requires(!std::is_trivially_destructible_v<T>)
     {
         if (m_hasValue)
         {
             ptr()->~T();
         }
+    }
+
+    /*
+        Copy ctors
+    */
+    Optional(const Optional &other)
+        requires(std::is_trivially_copy_constructible_v<T>)
+    = default;
+
+    Optional(const Optional &other)
+        requires(!std::is_trivially_copy_constructible_v<T>)
+        : m_hasValue(false)
+    {
+        if (other.m_hasValue)
+        {
+            new (ptr()) T(*other.ptr());
+
+            // Only set to true after placement
+            // new has succeeded
+            m_hasValue = true;
+        }
+    }
+
+    /*
+        Copy assignment operator
+    */
+    Optional &operator=(const Optional& other)
+        requires(std::is_trivially_copy_assignable_v<T>)
+    = default;
+
+    Optional &operator=(const Optional& other)
+        requires(!std::is_trivially_copy_assignable_v<T>)
+    {
+        if(this != &other) {
+            Optional temp(other);
+            swap(temp);
+        }
+        return *this;
+    }
+
+    Optional &operator=(nullopt_t) noexcept(std::is_nothrow_destructible_v<T>)
+    {
+        reset();
+        return *this;
+    }
+
+    /*
+        Move ctors
+    */
+    Optional(Optional &&other) noexcept
+        requires(std::is_trivially_move_constructible_v<T>)
+    = default;
+
+    Optional(Optional &&other) noexcept(std::is_nothrow_move_constructible_v<T>)
+        requires(!std::is_trivially_move_constructible_v<T>)
+        : m_hasValue(false)
+    {
+        if (other.m_hasValue)
+        {
+            new (ptr()) T(std::move(*other.ptr()));
+            m_hasValue = other.m_hasValue;
+            other.reset();
+        }
+    }
+
+    /*
+        Move assignment operators
+    */
+    Optional &operator=(Optional &&other) noexcept
+        requires(std::is_trivially_move_assignable_v<T>)
+    = default;
+
+    Optional &operator=(Optional &&other) noexcept(std::is_nothrow_destructible_v<T> &&
+                                                   std::is_nothrow_move_constructible_v<T> && std::is_nothrow_swappable_v<T>)
+        requires(!std::is_trivially_move_assignable_v<T>)
+    {
+        swap(other);
+        return *this;
     }
 
     template <typename... Args>
@@ -102,47 +185,6 @@ public:
         m_hasValue = true;
 
         return *ptr();
-    }
-
-    Optional(const Optional &other) : m_hasValue(false)
-    {
-        if (other.m_hasValue)
-        {
-            new (ptr()) T(*other.ptr());
-
-            // Only set to true after placement
-            // new has succeeded
-            m_hasValue = true;
-        }
-    }
-
-    Optional &operator=(Optional other)
-    {
-        swap(other);
-        return *this;
-    }
-
-    Optional &operator=(nullopt_t) noexcept(std::is_nothrow_destructible_v<T>)
-    {
-        reset();
-        return *this;
-    }
-
-    Optional(Optional &&other) noexcept(std::is_nothrow_move_constructible_v<T>) : m_hasValue(false)
-    {
-        if (other.m_hasValue)
-        {
-            new (ptr()) T(std::move(*other.ptr()));
-            m_hasValue = other.m_hasValue;
-            other.reset();
-        }
-    }
-
-    Optional &operator=(Optional &&other) noexcept(std::is_nothrow_destructible_v<T> &&
-                                                   std::is_nothrow_move_constructible_v<T> && std::is_nothrow_swappable_v<T>)
-    {
-        swap(other);
-        return *this;
     }
 
     bool operator==(nullopt_t) const noexcept { return !m_hasValue; }
